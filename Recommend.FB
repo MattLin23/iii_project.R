@@ -1,0 +1,80 @@
+# iii_project.R
+library(tm)
+library(stringr)
+setwd("LIN/")
+#原活動
+A1 <- read.table("FB/FB顯示活動130筆.txt",fileEncoding = "UTF-8")
+A2 <- unlist(A1)
+A3 <- as.vector(A2)
+#推薦的活動
+B1 <- read.table("FB/找相似的活動.txt",fileEncoding = "UTF-8")
+B2 <- unlist(B1)
+B3 <- as.vector(B2)
+X <- c(A3,B3)
+Y <- strsplit(X,",")   #list
+#整理資料
+vectorS <- VectorSource(Y)
+cp <- Corpus(vectorS)
+tm1 <- tm_map(cp,stripWhitespace)
+tm2 <- tm_map(tm1,removePunctuation)
+tm3 <- tm_map(tm2,removeNumbers)
+tm4 <- tm_map(tm3,tolower)
+tm5 <- tm_map(tm4, function(word) {
+  gsub("[a-z0-9]", "", word)
+})
+tm6 <- tm_map(tm5,PlainTextDocument)
+#dtm
+dtm1 <- DocumentTermMatrix(tm6,control=list(wordLengths=c(1, Inf))) #ncol(dtm) = 40498
+dtm <- as.matrix(dtm1)
+tdm <- t(dtm)
+#View(dtm)
+#############################################################################################
+tdm1 <-tdm[rowSums(tdm)>10,] 
+#############################################################################################
+library(Matrix)
+library(lsa)
+#mode(dtm1)轉成numeric
+class(tdm1) <- "numeric"
+#Entropy
+ptdm <- tdm1/Matrix::rowSums(tdm1)
+GW <- 1-entropy(ptdm)
+#############################################################################################
+#篩選詞語(去除GW太低)
+GW1 <- GW[GW>0.5] 
+indexGW <- names(GW1)
+#############################################################################################
+tdm1 <- tdm1[indexGW,]
+LW <- log(1+tdm1)  #log0 =-Inf
+X <- GW2*LW
+#加入類別欄位
+Type <- c(rep(1,nrow(A1)),rep(4,nrow(D1)))
+colnames(X) <- c(rep(paste("A",1:nrow(A1),sep="")),rep(paste("D",1:nrow(D1),sep="")))
+EN <- rbind(X,Type)
+
+Q <- length(A3)+1 #推薦活動文章開始
+A <- NULL
+B <-NULL
+C <-list()
+
+for(k in 1:(Q-1)) {
+  for(i in Q:ncol(EN)){
+    A[i] <- cosine(EN[-nrow(EN),k],EN[-nrow(EN),i])
+  }
+A[is.na(A)] <- 0 
+B <- order(A)
+C[[k]] <- B[(ncol(EN)-2):ncol(EN)]  #分數最高的前3筆
+}
+#推薦的活動
+D <- as.list(C)
+E <- unlist(D)
+F <- E-length(A3)   #對應到推薦活動(B3)的index
+doc. <- c(B3)
+docID <- gsub(",.*$", "", doc.)
+G <- docID[F]
+#原活動SQL方便的格式
+docA <- c(A3)
+docAID <- gsub(",.*$", "", docA)
+docAID.3 <- rep(docAID,each=3)
+#輸出活動對應推薦活動matrix
+Recom <- cbind(docAID.3,G)
+write.table(Recom,"Recommend")
