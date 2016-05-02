@@ -1,0 +1,137 @@
+library(tm)
+library(jiebaR)
+library(stringr)
+
+#設定資料讀取位置
+setwd("C://期末專題/")
+
+
+#2.文字相關性分析
+
+#取得資料夾內所有檔案名稱
+  filenames <- list.files("MattLin/資料(全)/科技/",pattern = ".txt")
+
+#讀取資料放入Z中
+z1 <- NULL
+z2 <- NULL
+z3 <- NULL
+z4 <- NULL
+z5 <- data.frame()
+z6 <- list()
+Y <- NULL
+MyDoc <- NULL
+Myterm <- NULL
+G <- NULL
+
+
+for (i in 1:100) {
+  z1 <-  read.table(paste("MattLin/資料(全)/科技/",filenames[i],sep = ""),fileEncoding = "UTF-8")
+  z2 <- unlist(z1)
+  z3 <- as.vector(z2)
+  z4 <- paste(z3,collapse = "")
+  z5[1,i] <- z4
+}
+
+for (k in 2) {
+  z6[[k]] <- paste(z5,collapse = "")
+  vectorS <- VectorSource(z6[[k]])
+  cp <- Corpus(vectorS)
+  tm1 <- tm_map(cp,stripWhitespace)
+  tm2 <- tm_map(tm1,removePunctuation)
+  tm3 <- tm_map(tm2,removeNumbers)
+  tm4 <- tm_map(tm3,tolower)
+  tm5 <- tm_map(tm4, function(word) {
+    gsub("[A-Za-z0-9]", "", word)
+  })
+  Y[[k]] <- unlist(tm5)
+  cutter = worker()
+  MyDoc[[k]] <- cutter[Y[[k]]]
+  G[k] <- paste(MyDoc[[k]],collapse = " ")
+}
+
+
+Myterm <- unique(unlist(MyDoc))
+
+#產生TermDocumentMatrix (方法一)
+tdm <- matrix(0,nrow = length(Myterm),ncol = length(MyDoc))
+row.names(tdm)=unlist(Myterm)
+colnames(tdm) <- c("公益類","其他類","科技類","美食類","娛樂類","旅遊類",
+                 "時尚類","健康類","商業類","運動類","學習類","藝文類","攝影類")
+for (i in 1:length(MyDoc)) {
+  tdm[,i] <- str_count(G[i],unlist(Myterm))
+}
+View(tdm)
+
+#產生TermDocumentMatrix (方法二)
+X <- strsplit(G," ")
+vectorS <- VectorSource(X)
+cp <- Corpus(vectorS)
+#選出1~4個單字組成的詞語
+tdm <-  TermDocumentMatrix(cp, control = list(wordLengths = c(1, 4),stopwords = TRUE))
+tdm <- inspect(tdm)
+
+
+#算出entropy,Global Weighting,Local Weighting
+library(lsa)
+ptdm <- tdm/rowSums(tdm)
+#Global Weighting
+#因entropy越大越亂 則加負號為了讓權重變小
+#/log(ncol(tmd)) 讓範圍在-1~0之間 (H最大值為log(m) 看有幾列有幾篇文章)
+#加1 讓最不亂的權重為1 最亂的權重為0
+GW <- 1-entropy(ptdm)/log(ncol(tdm)) 
+#+1 是為了讓tdm = 0的時候取log才會等於0
+LW <- log(1+tdm)
+
+#Log Entropy Weighting is GW*LW
+#可以看成把文章的詞變成向量 算距離 算相似程度
+#GW*LW 會把出現亂的字趨近0
+X <- GW*LW
+
+#以EW畫字雲 
+library("wordcloud")
+row.names(tdm) <- Myterm
+tremFreq <- rowSums(X)
+windows()     #開新視窗
+wordcloud(Myterm,tremFreq,colors = 1:length(Myterm))
+
+#Cosine Similarity Measure
+#用lsa套件中的cosine
+#cosine(X["公民",],X["機器人",]) 越靠近1越相近
+#cosine(X[,1],X[,3])  公益類與科技類的相似程度
+#字與字的相似程度 越接近1越相似 反之0不相似
+termsimi <- cosine(t(X)) 
+
+#Log Entropy Weighting
+#X可能維度太高(term太多) 要想辦法降維度 (可分別看term向量 or 看document向量)
+#X*Xt 內積矩陣(對稱矩陣) 可以對角化(Eigen) Eigenvalue >= 0
+myLSA <- lsa(X)
+termVec <- myLSA$tk*myLSA$sk   #會自動降維度
+docVec <- myLSA$dk*myLSA$sk    #會自動降維度
+
+termsimiLSA <- cosine(t(termVec))   #字與字之間相似程度(經過LSA降維)
+
+#找出關鍵字的其他相關字用字雲表示
+#還未用LSA降維
+termFreq <- tersimi["機器人,"]   #(,前是列 ,後是欄) 
+windows()
+wordcloud(Myterm,tremFreq,colors = 1:length(Myterm),max.words = 20
+          ,random.order = FALSE)  #找出20個最相關的字
+
+#用LSA降維後
+termFreq <- tersimiLSA["機器人,"]    
+windows()
+wordcloud(Myterm,tremFreq,colors = 1:length(Myterm),max.words = 20
+          ,random.order = FALSE)  #找出20個最相關的字
+
+#K-means分群
+termClust <- kmeans(termVec,5,iter.max = 20)    #分5群
+termClust$cluster    #分群後的每個字在哪一群
+
+#看分幾群畫出各群的字雲
+for(i in 1:5){
+  subTerms <- termVec[termClust$cluster == i,]   #查詢每個字的向量 長度越常越重要
+  subTermsNorm <- rowSums(subTerms^2)     #算長度
+  
+  windows()
+  wordcloud(names(subTermsNorm),subTermsNorm,max.words = 15,random.order=F) 
+}
