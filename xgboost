@@ -1,0 +1,26 @@
+library(magrittr)
+library(FeatureHashing)
+setwd("內文/")
+types <- dir(".", "txt$")
+df <- lapply(types, function(fname) {
+  .src <- readLines(fname)
+  .src <- gsub("^[^,]+,", "", .src)
+  data.frame(tokens = .src, type = fname, stringsAsFactors = FALSE)
+}) %>%
+  do.call(what = rbind)
+m <- hashed.model.matrix(~ split(tokens, ",", type = "existence"), df, create.mapping = TRUE)
+
+# mapping
+.map <- hash.mapping(m)
+
+library(xgboost)
+
+y.levels <- unique(df$type)
+i <- seq_len(nrow(m))
+i.train <- sample(i, 35000, FALSE)
+i.test <- setdiff(i, i.train)
+m.train <- m[i.train,]
+y.train <- factor(df$type[i.train], levels = y.levels)
+m.test <- m[i.test,]
+y.test <- factor(df$type[i.test], levels = y.levels)
+g <- xgboost(m.train, as.integer(y.train) - 1, params = list(objective = "multi:softmax", num_class = 13), nrounds = 10)
