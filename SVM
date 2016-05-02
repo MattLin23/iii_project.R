@@ -1,0 +1,95 @@
+library(e1071)
+library(tm)
+#-----------------------------------------------------------------------
+
+accupass1  <-  as.vector(unlist(read.table("Bonnie/公益斷字結果.txt")))       #character
+accupass2  <-  as.vector(unlist(read.table("Bonnie/科技斷字結果.txt"))) 
+accupass3  <-  as.vector(unlist(read.table("Bonnie/娛樂斷字結果.txt")))
+accupass4  <-  as.vector(unlist(read.table("Bonnie/旅遊斷字結果.txt")))
+accupass5  <-  as.vector(unlist(read.table("Bonnie/美食斷字結果.txt")))
+accupass6  <-  as.vector(unlist(read.table("Bonnie/時尚斷字結果.txt")))
+accupass7  <-  as.vector(unlist(read.table("Bonnie/健康斷字結果.txt")))
+accupass8  <-  as.vector(unlist(read.table("Bonnie/商業斷字結果.txt")))
+accupass9  <-  as.vector(unlist(read.table("Bonnie/運動斷字結果.txt")))
+accupass10 <- as.vector(unlist(read.table("Bonnie/學習斷字結果.txt")))[1:4000]
+accupass11 <- as.vector(unlist(read.table("Bonnie/藝文斷字結果.txt")))
+accupass12 <- as.vector(unlist(read.table("Bonnie/攝影斷字結果.txt")))
+accupass13 <- as.vector(unlist(read.table("Bonnie/其他斷字結果.txt")))
+# FB =  as.vector(unlist(read.table("/Users/bonniechung/Desktop/FB/FBAccupassall.txt")))[1:3000]
+
+rawdata <- c(accupass1,accupass2,accupass3,accupass4,accupass5,accupass6,accupass7,accupass8,accupass9,accupass10,accupass11,accupass12,accupass13)
+rawdata.list <- strsplit(rawdata,",")       #list
+d <- VectorSource(rawdata.list)             #"VectorSource" "SimpleSource" "Source"
+d <- Corpus (d)                             #"VCorpus" "Corpus" 
+
+docs <- tm_map(d,function(word) {gsub("[A-Za-z0-9]", "", word)})
+docs <- tm_map(docs,stripWhitespace)
+docs <- tm_map(docs,PlainTextDocument)   #"VCorpus" "Corpus"
+dtm  <- DocumentTermMatrix(docs,control = list(wordLengths = c(2, Inf)))       #"DocumentTermMatrix"    "simple_triplet_matrix"
+ncol(dtm)
+dtm.dense <- removeSparseTerms(dtm, 0.999) 
+ncol(dtm.dense)
+
+#---------------------------------------------------------------------------------
+
+#use tfidf words as column
+dtm.matrix  <- as.matrix(dtm.dense)                     #matrix
+# tfidf.words <- as.vector(unlist(read.table("/Users/bonniechung/Desktop/writetable/tfidfwords.txt")))  #用2500個accuppass 訓練出來的tfidf
+# tfidf.words.intersect <- intersect(colnames(dtm.dense),tfidf.words)
+# dtm.matrix2 <- dtm.matrix[,tfidf.words.intersect]    #matrix
+
+#Add Type
+Type.x <- c()
+for(i in 1:13) {Type.x= c(Type.x, rep(i,length(get(paste("accupass",i,sep="")))))  }
+# Type.x= c(Type.x,rep(14,length(FB)) )
+# Type.x = c(rep(1,length(accupass1)),rep(2,length(accupass2)),rep(3,length(accupass3)),rep(4,length(accupass4)),rep(5,length(accupass5)),rep(6,length(accupass6)),rep(7,length(accupass7)),rep(8,length(accupass8)),rep(9,length(accupass9)),rep(10,length(accupass10)),rep(11,length(accupass11)),rep(12,length(accupass12)),rep(14,length(FB)))
+dtm.matrix <- cbind(dtm.matrix,Type.x)                         #matrix
+colnames(dtm.matrix)[ncol(dtm.matrix)] <- c("Type")
+
+#Add row name
+#FB.no <- as.vector(unlist(read.table("/Users/bonniechung/Desktop/FB/FBAccupass500no.txt", colClasses="character")))
+# FB.no <- gsub(",.*$", "", FB)
+# id.x = c(rep(1,length(accupass1)),rep(2,length(accupass2)),rep(3,length(accupass3)),rep(4,length(accupass4)),rep(5,length(accupass5)),rep(6,length(accupass6)),rep(7,length(accupass7)),rep(8,length(accupass8)),rep(9,length(accupass9)),rep(10,length(accupass10)),rep(11,length(accupass11)),rep(12,length(accupass12)),rep(13,length(accupass13)),FB.no[1:length(FB)])
+# rownames(dtm.matrix) = id.x
+
+#remove empty row
+# x= dtm.matrix[,-ncol(dtm.matrix)]
+# dtm.matrix4 <- dtm.matrix[apply(x,1,sum)!=0,]
+# #table(dtm.matrix[,"Type"]==14)
+
+dtm.data.frame <- as.data.frame(dtm.matrix)   
+
+#--------------------------------------------------------------------------------
+#train. test
+table.x= table(dtm.data.frame[,"Type"])
+# trainindex1= sample(table.x[1],500)
+# trainindex2= sample(table.x[2],500)+table.x[1]
+# trainindex3= sample(table.x[3],500)+table.x[1]+table.x[2]
+# trainindex4= sample(table.x[4],500)+table.x[1]+table.x[2]+table.x[3]
+# trainindex5= sample(table.x[5],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]
+# trainindex6= sample(table.x[6],310)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]
+# trainindex7= sample(table.x[7],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]
+# trainindex8= sample(table.x[8],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]+table.x[7]
+# trainindex9= sample(table.x[9],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]+table.x[7]+table.x[8]
+# trainindex10= sample(table.x[10],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]+table.x[7]+table.x[8]+table.x[9]
+# trainindex11= sample(table.x[11],500)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]+table.x[7]+table.x[8]+table.x[9]+table.x[10]
+# trainindex12= sample(table.x[12],472)+table.x[1]+table.x[2]+table.x[3]+table.x[4]+table.x[5]+table.x[6]+table.x[7]+table.x[8]+table.x[9]+table.x[10]+table.x[11]
+# trainindex=c(trainindex1,trainindex2,trainindex3,trainindex4,trainindex5,trainindex6,trainindex7,trainindex8,trainindex9,trainindex10,trainindex11,trainindex12)
+
+
+trainindex <- list()
+for(i in 1:13) {
+  trainindex[[i]] <- sample(table.x[i], (table.x[i]*0.7)) + sum(table.x[seq_len(i - 1)])
+}
+trainindex <- unlist(trainindex)
+testindex= setdiff(1:nrow(dtm.data.frame),trainindex)
+
+trainset= dtm.data.frame[trainindex,]
+testset= dtm.data.frame[testindex,]
+#testset= dtm.data.frame[dtm.data.frame[,"Type"]==14,]
+#table(trainset[,"Type"])
+
+svm.model <- svm(Type ~ ., data = trainset, type="C-classification", cost = 10, gamma=0.001)
+svm.pred  <- predict(svm.model, testset[,-ncol(dtm.data.frame)])
+#levels(svm.pred)  = c("公益","健康","科技","旅遊","美食","商業","攝影","時尚","學習","藝文","娛樂","運動","其他")
+table(svm.pred)
